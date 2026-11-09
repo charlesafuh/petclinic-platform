@@ -132,9 +132,9 @@ variable "dns_record_name" {
 }
 
 variable "enable_dns_alias" {
-  description = "Create the Route 53 alias record -> ALB. Set true only after the Ingress has provisioned the ALB (phase 2); it is then resolved via data.aws_lb, so routine applies never drop it."
+  description = "Create the Route 53 alias records -> ALB. Now that the Ingress has provisioned the ALB (phase 2 complete), this defaults to true so routine `terraform apply` runs keep the records instead of destroying them. The records are resolved via data.aws_lb by name."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "alb_name" {
