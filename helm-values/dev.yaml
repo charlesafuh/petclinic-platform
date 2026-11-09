@@ -1,0 +1,21 @@
+# Dev environment overrides (merged LAST, after the per-service file).
+# Forces the dev shape: 1 replica everywhere, no HPA, no PDB.
+namespace: petclinic-dev
+
+image:
+  # Account 746859878803 = the real petclinic ECR (Terraform state / live AWS).
+  # image.tag is NOT set here — it lives per-service in helm-values/{service}.yaml,
+  # which update-image-tags.yml (CI) rewrites to the commit SHA. Setting it here
+  # would override that per-service value (env file merges last).
+  registry: 746859878803.dkr.ecr.eu-central-1.amazonaws.com/petclinic-dev
+
+replicaCount: 1
+
+autoscaling:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false
+
+database:
+  endpoint: petclinic-dev-mysql.cry0e28g8t1c.eu-central-1.rds.amazonaws.com

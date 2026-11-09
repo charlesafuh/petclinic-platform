@@ -1,0 +1,27 @@
+# admin-server — Spring Boot Admin dashboard.
+component: infrastructure
+
+image:
+  name: admin-server
+  tag: "0000000"   # CI (update-image-tags.yml) overwrites with the commit SHA
+
+service:
+  port: 9090
+  targetPort: 9090
+
+springProfiles: "docker"
+
+env:
+  - name: CONFIG_SERVER_URL
+    value: "http://config-server:8888"
+
+secrets: []
+
+initContainers:
+  - name: config-server
+    port: 8888
+  - name: discovery-server
+    port: 8761
+
+# Prod shape: single replica, no HPA, no PDB (monitoring tool).
+replicaCount: 1

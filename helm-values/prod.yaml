@@ -1,0 +1,16 @@
+# Prod environment overrides (merged LAST, after the per-service file).
+# Replica counts, HPA and PDB are intentionally NOT set here — they come from each
+# per-service file (the "prod shape"), so every service keeps its own values
+# (per the task: prod replicas/HPA/PDB are per-service, not blanket defaults).
+namespace: petclinic-prod
+
+image:
+  # Account 746859878803 = the real petclinic ECR (Terraform state / live AWS).
+  # image.tag is NOT set here — it lives per-service in helm-values/{service}.yaml,
+  # which update-image-tags.yml (CI) rewrites to the commit SHA. Setting it here
+  # would override that per-service value (env file merges last).
+  registry: 746859878803.dkr.ecr.eu-central-1.amazonaws.com/petclinic-prod
+
+database:
+  # Prod RDS is not provisioned yet — fill from the prod Terraform output `rds_endpoint`.
+  endpoint: REPLACE_WITH_PROD_RDS_ENDPOINT

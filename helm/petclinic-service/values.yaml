@@ -1,0 +1,101 @@
+# Default values for the generic petclinic-service chart.
+# Overridden by helm-values/{service}.yaml (per-service) then helm-values/{env}.yaml (per-env).
+
+nameOverride: ""        # defaults to the Helm release name (= service name)
+namespace: ""           # defaults to the release namespace; set per-env
+component: backend      # app.kubernetes.io/component (backend|frontend|infrastructure)
+
+replicaCount: 1
+
+image:
+  # registry is set per-ENV and already includes the petclinic-{env} path, e.g.
+  # 746859878803.dkr.ecr.eu-central-1.amazonaws.com/petclinic-dev
+  registry: ""
+  name: ""              # set per-SERVICE (config-server, api-gateway, ...)
+  tag: placeholder      # overridden by CI with the 7-char commit SHA
+  pullPolicy: Always
+
+serviceAccount:
+  create: true
+  annotations: {}       # e.g. IRSA role-arn, if a service ever needs AWS access
+automountServiceAccountToken: false
+
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+
+# Spring profiles -> SPRING_PROFILES_ACTIVE (docker | docker,mysql)
+springProfiles: "docker"
+
+# Extra static env vars beyond SPRING_PROFILES_ACTIVE: list of {name, value}
+env: []
+
+# Secret-backed env vars: list of {name, secretName, key}. Secrets come from
+# ExternalSecret CRs in k8s/base/external-secrets/ (never stored in values).
+secrets: []
+
+# MySQL datasource. endpoint is set per-ENV; the template composes
+# SPRING_DATASOURCE_URL when enabled.
+database:
+  enabled: false
+  name: petclinic
+  endpoint: ""
+
+# Startup-order init containers: list of {name, port}. The template renders a
+# busybox:1.36 wget-loop that waits for each dependency's /actuator/health.
+initContainers: []
+
+# Optional ConfigMap (not used by default; config is delivered as env vars).
+configMap:
+  enabled: false
+  data: {}
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+
+probes:
+  startup:
+    path: /actuator/health
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 30
+  readiness:
+    path: /actuator/health/readiness
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  liveness:
+    path: /actuator/health/liveness
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1

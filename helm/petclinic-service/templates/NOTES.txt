@@ -1,0 +1,16 @@
+{{ include "petclinic-service.name" . }} deployed to namespace {{ include "petclinic-service.namespace" . }}.
+
+Image:      {{ include "petclinic-service.image" . }}
+Replicas:   {{ .Values.replicaCount }}
+Autoscaling:{{ if .Values.autoscaling.enabled }} enabled ({{ .Values.autoscaling.minReplicas }}-{{ .Values.autoscaling.maxReplicas }} @ {{ .Values.autoscaling.targetCPUUtilizationPercentage }}% CPU){{ else }} disabled{{ end }}
+PDB:        {{ if .Values.podDisruptionBudget.enabled }} enabled (minAvailable {{ .Values.podDisruptionBudget.minAvailable }}){{ else }} disabled{{ end }}
+
+Check rollout:
+  kubectl -n {{ include "petclinic-service.namespace" . }} rollout status deploy/{{ include "petclinic-service.name" . }}
+
+Secret-backed env vars require the matching ExternalSecret (ESO) to have synced:
+{{- range .Values.secrets }}
+  - {{ .name }} <- secret/{{ .secretName }} key {{ .key }}
+{{- else }}
+  (none)
+{{- end }}

@@ -1,0 +1,46 @@
+# api-gateway — public entry point (Spring Cloud Gateway + AngularJS frontend).
+component: frontend
+
+image:
+  name: api-gateway
+  tag: "0000000"   # CI (update-image-tags.yml) overwrites with the commit SHA
+
+service:
+  port: 8080
+  targetPort: 8080
+
+springProfiles: "docker"
+
+env:
+  - name: CONFIG_SERVER_URL
+    value: "http://config-server:8888"
+  - name: DISCOVERY_SERVER_URL
+    value: "http://discovery-server:8761/eureka"
+
+secrets: []
+
+initContainers:
+  - name: config-server
+    port: 8888
+  - name: discovery-server
+    port: 8761
+
+# Gateway handles all ingress traffic -> higher CPU.
+resources:
+  requests:
+    cpu: 200m
+    memory: 128Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+# Prod shape (dev.yaml forces replicas=1 and disables HPA/PDB).
+replicaCount: 2
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1

@@ -1,0 +1,32 @@
+# config-server — starts first, Git-backed Spring Cloud Config. No dependencies.
+component: infrastructure
+
+image:
+  name: config-server
+  tag: "0000000"   # CI (update-image-tags.yml) overwrites with the commit SHA
+
+service:
+  port: 8888
+  targetPort: 8888
+
+springProfiles: "docker"
+
+env:
+  - name: GIT_REPO
+    value: "https://github.com/spring-petclinic/spring-petclinic-microservices-config"
+
+secrets: []
+initContainers: []
+
+# config-server exposes only /actuator/health (no readiness/liveness groups).
+probes:
+  readiness:
+    path: /actuator/health
+  liveness:
+    path: /actuator/health
+
+# Prod shape (dev.yaml forces replicas=1 and disables PDB).
+replicaCount: 2
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
