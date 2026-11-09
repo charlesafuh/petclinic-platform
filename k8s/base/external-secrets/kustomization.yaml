@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# App-scoped ExternalSecrets only (consumed by the dev/prod overlays, which set
+# the target namespace and — for prod — patch the remoteRef keys to petclinic/prod/*).
+#
+# The cluster-scoped ESO infrastructure in this directory (namespace.yaml,
+# serviceaccount.yaml, cluster-secret-store.yaml) is installed once per cluster
+# outside Kustomize — see README.md — so it is intentionally NOT listed here.
+resources:
+  - rds-credentials.yaml
+  - openai-api-key.yaml

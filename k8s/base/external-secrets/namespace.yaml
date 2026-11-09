@@ -1,0 +1,14 @@
+# External Secrets Operator namespace (PETPLAT-34).
+#
+# Dedicated namespace for the ESO controller and its ServiceAccount. Kept
+# separate from the application namespaces (petclinic-dev/petclinic-prod) so the
+# operator's blast radius and RBAC stay isolated from workloads.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-secrets
+  labels:
+    app.kubernetes.io/name: external-secrets
+    app.kubernetes.io/part-of: petclinic
+    app.kubernetes.io/managed-by: kubectl
+    app.kubernetes.io/component: infrastructure

@@ -1,0 +1,33 @@
+# ExternalSecret: OpenAI API key (PETPLAT-36).
+#
+# Syncs the plaintext secret petclinic/{env}/openai-api-key from AWS Secrets
+# Manager (created by the secrets module, PETPLAT-33) into a Kubernetes Secret
+# named `openai-api-key` with the key OPENAI_API_KEY. The genai-service mounts
+# this as the OPENAI_API_KEY env var.
+#
+# Per-environment values (namespace, remoteRef.key) are patched by the Kustomize
+# overlay / ArgoCD. Base defaults target dev: namespace petclinic-dev and secret
+# key petclinic/dev/openai-api-key. For prod these become petclinic-prod and
+# petclinic/prod/openai-api-key.
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: openai-api-key
+  namespace: petclinic-dev
+  labels:
+    app.kubernetes.io/name: openai-api-key
+    app.kubernetes.io/part-of: petclinic
+    app.kubernetes.io/managed-by: kubectl
+    app.kubernetes.io/component: infrastructure
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: aws-secrets-manager
+    kind: ClusterSecretStore
+  target:
+    name: openai-api-key
+    creationPolicy: Owner
+  data:
+    - secretKey: OPENAI_API_KEY
+      remoteRef:
+        key: petclinic/dev/openai-api-key
