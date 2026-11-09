@@ -3,7 +3,7 @@ component: backend
 
 image:
   name: visits-service
-  tag: "0000000"   # CI (update-image-tags.yml) overwrites with the commit SHA
+  tag: "305a1f1"   # CI (update-image-tags.yml) overwrites with the commit SHA
 
 service:
   port: 8082
