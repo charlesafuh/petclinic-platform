@@ -1,0 +1,120 @@
+# update-image-tags.yml (PETPLAT-50 / PETPLAT-87)
+#
+# GitOps image-tag bump. The application repo's build-push workflow, after it
+# pushes the ARM64 images to ECR, fires a repository_dispatch (event type
+# "app-image-built") at THIS platform repo with the commit SHA and the list of
+# CHANGED services in the payload. This workflow rewrites image.tag in
+# helm-values/{service}.yaml for ONLY those services, commits, and pushes.
+# ArgoCD watches the repo and syncs the change (dev: auto-sync, prod: manual).
+#
+# Only the changed services are bumped: build-push rebuilds only the services
+# whose directories changed (paths-filter), so an image at the new SHA exists
+# only for those. Bumping all 8 would point the unchanged services at a tag with
+# no image and roll them into ImagePullBackOff (PETPLAT-50 AC: payload only).
+#
+# CI only — there is NO kubectl / aws eks update-kubeconfig here. Deployment is
+# ArgoCD's job.
+
+name: Update Image Tags
+
+on:
+  repository_dispatch:
+    types: [app-image-built]
+
+# Only the ability to commit the tag bump back to this repo is needed.
+permissions:
+  contents: write
+
+# Serialize runs so concurrent dispatches don't race on the push to main.
+concurrency:
+  group: update-image-tags
+  cancel-in-progress: false
+
+jobs:
+  update-tags:
+    name: Bump helm-values image tags
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout platform repo
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Install yq (mikefarah)
+        env:
+          YQ_VERSION: v4.44.3
+        run: |
+          set -euo pipefail
+          sudo wget -qO /usr/local/bin/yq \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+
+      - name: Validate dispatch payload
+        env:
+          # Pass the untrusted payload through the environment (never inline it
+          # into the shell) to avoid script injection.
+          SHA: ${{ github.event.client_payload.sha }}
+          SERVICES_JSON: ${{ toJSON(github.event.client_payload.services) }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SHA:-}" ]; then
+            echo "::error::client_payload.sha is missing from the repository_dispatch payload"
+            exit 1
+          fi
+          if ! printf '%s' "$SHA" | grep -Eq '^[0-9a-f]{7,40}$'; then
+            echo "::error::client_payload.sha is not a hex commit SHA: '$SHA'"
+            exit 1
+          fi
+          count=$(printf '%s' "$SERVICES_JSON" | jq 'if type=="array" then length else -1 end')
+          if [ "$count" -lt 1 ]; then
+            echo "::error::client_payload.services must be a non-empty array"
+            exit 1
+          fi
+          echo "Payload validated: SHA=$SHA, services=$count"
+
+      - name: Update image.tag for changed services only
+        env:
+          SHA: ${{ github.event.client_payload.sha }}
+          SERVICES_JSON: ${{ toJSON(github.event.client_payload.services) }}
+        run: |
+          set -euo pipefail
+          # Whitelist — the payload is untrusted, so reject anything else before
+          # it reaches a file path (prevents path traversal).
+          ALLOWED="config-server discovery-server api-gateway customers-service visits-service vets-service genai-service admin-server"
+          mapfile -t SERVICES < <(printf '%s' "$SERVICES_JSON" | jq -r '.[]')
+          updated=()
+          for svc in "${SERVICES[@]}"; do
+            case " $ALLOWED " in
+              *" $svc "*) ;;
+              *) echo "::error::unknown service in payload: '$svc'"; exit 1 ;;
+            esac
+            file="helm-values/${svc}.yaml"
+            if [ ! -f "$file" ]; then
+              echo "::error::missing values file: $file"
+              exit 1
+            fi
+            yq -i ".image.tag = strenv(SHA)" "$file"
+            echo "  $file -> image.tag=$SHA"
+            updated+=("$svc")
+          done
+          {
+            echo "IMAGE_SHA=$SHA"
+            echo "SERVICE_LIST=${updated[*]}"
+          } >> "$GITHUB_ENV"
+
+      - name: Commit and push tag bump
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet -- helm-values/; then
+            echo "No image.tag changes (already at ${IMAGE_SHA}); nothing to commit."
+            exit 0
+          fi
+
+          git add helm-values/
+          git commit -m "ci: update image tags to ${IMAGE_SHA} (${SERVICE_LIST})"
+          git push origin HEAD:main
+          echo "Pushed image tag bump to ${IMAGE_SHA}. ArgoCD will sync."
